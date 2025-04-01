@@ -31,44 +31,12 @@ app.get("/", (req, res) =>
 // 🔹 **Pagamento com Cartão de Crédito**
 app.post("/pagar/cartao", async (req, res) => {
   try {
-    const { amount, card_number, holder_name, exp_month, exp_year, cvv } =
-      req.body;
-
     const response = await axios.post(
       "https://api.pagar.me/core/v5/orders",
-      {
-        customer: {
-          name: "Cliente Exemplo",
-          email: "cliente@email.com",
-          type: "individual",
-        },
-        items: [
-          {
-            description: "Produto Teste",
-            quantity: 1,
-            amount: amount, // O valor já deve estar em centavos
-          },
-        ],
-        payments: [
-          {
-            payment_method: "credit_card",
-            credit_card: {
-              installments: 1, // 1x sem juros
-              statement_descriptor: "Minha Loja",
-              card: {
-                number: card_number,
-                holder_name: holder_name,
-                exp_month: exp_month,
-                exp_year: exp_year,
-                cvv: cvv,
-              },
-            },
-          },
-        ],
-      },
+      req.body,
       {
         headers: {
-          Authorization: `Basic ${Buffer.from(PAGARME_API_KEY).toString(
+          Authorization: `Basic ${Buffer.from(PAGARME_API_KEY + ":").toString(
             "base64"
           )}`,
           "Content-Type": "application/json",
@@ -80,9 +48,12 @@ app.post("/pagar/cartao", async (req, res) => {
     const lastTransaction = charges[0]?.last_transaction || {};
 
     // 🔹 Salvar pagamento no MongoDB
-    const payment = await Payment.create({
+    await Payment.create({
       method: "credit_card",
-      amount,
+      amount: req.body.items.reduce(
+        (amount, currentItem) => amount + currentItem.amount,
+        0
+      ),
       status: lastTransaction.status || "pending",
       transactionId: response.data.id,
       brand: lastTransaction.card_brand || "N/A",
